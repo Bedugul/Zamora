@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuadrante de Turnos - Proyecto 2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-blue-700 mb-8">Apouo operativo Santiago (21 Ene - 7 Feb)</h1>
+
+        <!-- Formulario de Selección -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Apúntate a una semana</h2>
+            <form id="turnoForm" class="flex flex-col md:flex-row gap-4">
+                <select id="persona" class="border p-2 rounded flex-1" required>
+                    <option value="" disabled selected>Selecciona tu nombre</option>
+                    <option value="Alberto">Alberto</option>
+                    <option value="Alfonso">Alfonso</option>
+                    <option value="Cristina">Cristina</option>
+                    <option value="Raúl">Raúl</option>
+                    <option value="Yolanda">Yolanda</option>
+                </select>
+
+                <select id="semana" class="border p-2 rounded flex-1" required>
+                    <option value="" disabled selected>Selecciona la semana</option>
+                    <option value="Semana 1">Semana 1: 21 al 24 de enero</option>
+                    <option value="Semana 2">Semana 2: 25 al 31 de enero</option>
+                    <option value="Semana 3">Semana 3: 1 al 7 de febrero</option>
+                </select>
+
+                <select id="turno" class="border p-2 rounded flex-1" required>
+                    <option value="" disabled selected>Mañana o Tarde</option>
+                    <option value="Mañana">Mañana</option>
+                    <option value="Tarde">Tarde</option>
+                </select>
+
+                <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition">Guardar</button>
+            </form>
+        </div>
+
+        <!-- Tabla de Calendario -->
+        <div class="bg-white p-6 rounded-lg shadow-md overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-max">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-3 border-b border-gray-300">Semana</th>
+                        <th class="p-3 border-b border-gray-300">Turno de Mañana</th>
+                        <th class="p-3 border-b border-gray-300">Turno de Tarde</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaTurnos">
+                    <tr id="row-semana-1">
+                        <td class="p-3 border-b font-semibold">Semana 1 (21 - 24 Ene)</td>
+                        <td class="p-3 border-b cell-manana min-w-[150px]"></td>
+                        <td class="p-3 border-b cell-tarde min-w-[150px]"></td>
+                    </tr>
+                    <tr id="row-semana-2">
+                        <td class="p-3 border-b font-semibold">Semana 2 (25 - 31 Ene)</td>
+                        <td class="p-3 border-b cell-manana"></td>
+                        <td class="p-3 border-b cell-tarde"></td>
+                    </tr>
+                    <tr id="row-semana-3">
+                        <td class="p-3 border-b font-semibold">Semana 3 (1 - 7 Feb)</td>
+                        <td class="p-3 border-b cell-manana"></td>
+                        <td class="p-3 border-b cell-tarde"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // CONFIGURACIÓN DE FIREBASE: Pega aquí tu bloque "const firebaseConfig = { ... };"
+       const firebaseConfig = {
+  apiKey: "AIzaSyCUJqnbzLNthbKIuR1_UbyEIUMVaRzD6nA",
+  authDomain: "santiago-be1e7.firebaseapp.com",
+  projectId: "santiago-be1e7",
+  storageBucket: "santiago-be1e7.firebasestorage.app",
+  messagingSenderId: "888160359919",
+  appId: "1:888160359919:web:136694c788cdd3ec5f121a"
+};
+
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // El nombre de la base de datos se ha cambiado para no mezclar los turnos con el otro proyecto
+        const nombreColeccion = "turnos_proyecto_2";
+        
+        const colores = {
+            "Alberto": "bg-red-200 text-red-800",
+            "Alfonso": "bg-blue-200 text-blue-800",
+            "Cristina": "bg-green-200 text-green-800",
+            "Raúl": "bg-purple-200 text-purple-800",
+            "Yolanda": "bg-yellow-200 text-yellow-800"
+        };
+
+        function pintarTurnos(turnos) {
+            document.querySelectorAll('.cell-manana, .cell-tarde').forEach(el => el.innerHTML = '');
+
+            turnos.forEach(turno => {
+                const filaId = "row-" + turno.semana.toLowerCase().replace(" ", "-");
+                const fila = document.getElementById(filaId);
+                
+                if(fila) {
+                    const celda = turno.turno === "Mañana" ? fila.querySelector('.cell-manana') : fila.querySelector('.cell-tarde');
+                    
+                    const badge = document.createElement('div');
+                    badge.className = `inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold m-1 ${colores[turno.persona]}`;
+                    badge.innerHTML = `
+                        ${turno.persona}
+                        <button onclick="eliminarTurno('${turno.id}', '${turno.persona}', '${turno.semana}')" class="text-xs hover:text-black font-bold focus:outline-none">&times;</button>
+                    `;
+                    celda.appendChild(badge);
+                }
+            });
+        }
+
+        const q = query(collection(db, nombreColeccion));
+        onSnapshot(q, (snapshot) => {
+            const turnos = [];
+            snapshot.forEach((doc) => {
+                turnos.push({ id: doc.id, ...doc.data() });
+            });
+            pintarTurnos(turnos);
+        });
+
+        document.getElementById('turnoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const persona = document.getElementById('persona').value;
+            const semana = document.getElementById('semana').value;
+            const turno = document.getElementById('turno').value;
+
+            if (persona && semana && turno) {
+                const qDocs = query(collection(db, nombreColeccion), where("persona", "==", persona), where("semana", "==", semana));
+                const querySnapshot = await getDocs(qDocs);
+                
+                querySnapshot.forEach(async (documento) => {
+                   await deleteDoc(doc(db, nombreColeccion, documento.id)); 
+                });
+
+                await addDoc(collection(db, nombreColeccion), {
+                    persona: persona,
+                    semana: semana,
+                    turno: turno
+                });
+            }
+        });
+
+        window.eliminarTurno = async function(id, persona, semana) {
+            // Petición de confirmación dinámica y mejorada para evitar errores
+            if(confirm(`¿Seguro que quieres eliminar el turno de ${persona} en la ${semana}?`)) {
+                await deleteDoc(doc(db, nombreColeccion, id));
+            }
+        }
+    </script>
+</body>
+</html>
